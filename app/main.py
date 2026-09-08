@@ -1,5 +1,17 @@
+from fastapi import HTTPException, status
+from fastapi import Depends
 from fastapi import FastAPI
 from pydantic import BaseModel
+from app.database import engine , SessionLocal
+from sqlalchemy.orm import Session
+from app.models import User
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 app=FastAPI()
 
@@ -31,6 +43,29 @@ def root():
 # | Auto Documentation   | Yes (Swagger UI, ReDoc built-in) | No (Requires third-party packages)   |
 # | Learning Curve       | Low (easy to start)              | Moderate to High                     |
 # ==============================================================================
+
+@app.get("/health/db")
+def database_health():
+   try:
+    with engine.connect():
+        return {"database": "connected"}
+   except Exception as e:
+        return {"database": "disconnected"}
+
+@app.get('/users/{email}')
+def get_user(email:str,db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{email}' not found"
+        )
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+    }
+
 
 @app.post("/login")
 def login(request:LoginRequest):
